@@ -481,14 +481,39 @@ export class ChatStateMachine {
                         timestamp: Date.now() + 500
                     })
                 }
-                // Default fallback
+                // Default - Call Gemini API for intelligent response
                 else {
-                    nextSession.messages.push({
-                        id: crypto.randomUUID(),
-                        role: 'assistant',
-                        content: "I can help with:\n• **Takeout**: 'I want a burger for R100'\n• **Groceries**: 'I need groceries for R500'\n• **Cart**: 'What's in my cart?'\n\nWhat would you like?",
-                        timestamp: Date.now() + 300
-                    })
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                message: input,
+                                context: {
+                                    userProfile: nextSession.userProfile,
+                                    cart: nextSession.cart,
+                                    state: nextSession.state
+                                }
+                            })
+                        })
+
+                        const data = await response.json()
+
+                        nextSession.messages.push({
+                            id: crypto.randomUUID(),
+                            role: 'assistant',
+                            content: data.response || "I'm having trouble understanding. Try asking about food, groceries, or your budget!",
+                            timestamp: Date.now() + 300
+                        })
+                    } catch (error) {
+                        console.error('AI Chat error:', error)
+                        nextSession.messages.push({
+                            id: crypto.randomUUID(),
+                            role: 'assistant',
+                            content: "I can help with:\n• **Takeout**: 'I want a burger for R100'\n• **Groceries**: 'I need groceries for R500'\n• **Cart**: 'What's in my cart?'\n\nWhat would you like?",
+                            timestamp: Date.now() + 300
+                        })
+                    }
                 }
                 break
         }
