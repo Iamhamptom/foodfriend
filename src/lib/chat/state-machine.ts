@@ -422,114 +422,92 @@ export class ChatStateMachine {
                         })
                     }
                 }
-                // Handle FOOD CRAVING intent (burger, pizza, etc.)
-                else if (inputLower.includes('burger') || inputLower.includes('pizza') || inputLower.includes('chicken') || inputLower.includes('food') || inputLower.includes('hungry') || inputLower.includes('eat')) {
-                    // Extract food type and budget
-                    let foodType = 'food'
-                    if (inputLower.includes('burger')) foodType = 'burger'
-                    else if (inputLower.includes('pizza')) foodType = 'pizza'
-                    else if (inputLower.includes('chicken')) foodType = 'chicken'
+                // Handle FOOD CRAVING intent (burger, pizza, chicken, or specific restaurant)
+                else if (inputLower.includes('burger') || inputLower.includes('pizza') || inputLower.includes('chicken') || inputLower.includes('food') || inputLower.includes('hungry') || inputLower.includes('eat') || inputLower.includes('mcdonald') || inputLower.includes('kfc') || inputLower.includes('nando') || inputLower.includes('steers') || inputLower.includes('debonair')) {
+                    // Extract food category
+                    let category: string | undefined = undefined
+                    if (inputLower.includes('burger')) category = 'burger'
+                    else if (inputLower.includes('pizza')) category = 'pizza'
+                    else if (inputLower.includes('chicken')) category = 'chicken'
+
+                    // Extract specific restaurant name
+                    let restaurantSlug: string | undefined = undefined
+                    let restaurantName = ''
+                    if (inputLower.includes('mcdonald')) { restaurantSlug = 'mcdonalds'; restaurantName = "McDonald's" }
+                    else if (inputLower.includes('kfc')) { restaurantSlug = 'kfc'; restaurantName = 'KFC' }
+                    else if (inputLower.includes('nando')) { restaurantSlug = 'nandos'; restaurantName = "Nando's" }
+                    else if (inputLower.includes('steers')) { restaurantSlug = 'steers'; restaurantName = 'Steers' }
+                    else if (inputLower.includes('debonair')) { restaurantSlug = 'debonairs'; restaurantName = 'Debonairs' }
+                    else if (inputLower.includes('chicken licken')) { restaurantSlug = 'chicken-licken'; restaurantName = 'Chicken Licken' }
+                    else if (inputLower.includes('wimpy')) { restaurantSlug = 'wimpy'; restaurantName = 'Wimpy' }
 
                     // Parse budget - look for R followed by number, or "under/below X"
                     const rMatch = input.match(/R\s?(\d+)/i)
                     const underMatch = input.match(/(?:under|below|less than|max|maximum)\s*R?\s*(\d+)/i)
                     const budget = underMatch ? parseInt(underMatch[1])
                         : rMatch ? parseInt(rMatch[1])
-                            : 150 // Default budget if none specified
+                            : 500 // Higher default budget to show more results
 
-                    // Realistic SA product catalog with actual store prices
-                    const productCatalog: Record<string, Array<{ name: string, store: string, price: number, eta: string }>> = {
-                        burger: [
-                            { name: 'Steers Wacky Wednesday', store: 'Mr D', price: 35, eta: '25m' },
-                            { name: 'McDonald\'s McFeast', store: 'Uber Eats', price: 55, eta: '20m' },
-                            { name: 'Wimpy Burger', store: 'Mr D', price: 65, eta: '30m' },
-                            { name: 'Steers Classic Burger', store: 'Uber Eats', price: 75, eta: '25m' },
-                            { name: 'RocoMamas Smash Burger', store: 'Mr D', price: 89, eta: '35m' },
-                            { name: 'Spur Burger', store: 'Uber Eats', price: 95, eta: '30m' },
-                            { name: 'Hussar Grill Burger', store: 'Mr D', price: 125, eta: '40m' },
-                            { name: 'The Grillfather Burger', store: 'Uber Eats', price: 145, eta: '35m' },
-                        ],
-                        pizza: [
-                            { name: 'Debonairs Small Pizza', store: 'Mr D', price: 45, eta: '30m' },
-                            { name: 'Roman\'s Pizza Medium', store: 'Uber Eats', price: 59, eta: '25m' },
-                            { name: 'Debonairs Medium Triple-Decker', store: 'Mr D', price: 79, eta: '30m' },
-                            { name: 'Col\'Cacchio Margherita', store: 'Uber Eats', price: 95, eta: '35m' },
-                            { name: 'Andiccio24 Large', store: 'Mr D', price: 115, eta: '30m' },
-                            { name: 'Col\'Cacchio Gourmet', store: 'Uber Eats', price: 135, eta: '35m' },
-                        ],
-                        chicken: [
-                            { name: 'KFC Streetwise 2', store: 'Uber Eats', price: 42, eta: '20m' },
-                            { name: 'Nando\'s Quarter Chicken', store: 'Mr D', price: 55, eta: '25m' },
-                            { name: 'KFC Bucket for 1', store: 'Uber Eats', price: 69, eta: '20m' },
-                            { name: 'Nando\'s Half Chicken', store: 'Mr D', price: 85, eta: '25m' },
-                            { name: 'Chicken Licken Soul Food Box', store: 'Uber Eats', price: 95, eta: '25m' },
-                            { name: 'Nando\'s Full Chicken', store: 'Mr D', price: 145, eta: '30m' },
-                        ],
-                        food: [
-                            { name: 'Woolworths Ready Meal', store: 'Checkers Sixty60', price: 45, eta: '45m' },
-                            { name: 'Ocean Basket Fish & Chips', store: 'Mr D', price: 75, eta: '30m' },
-                            { name: 'Spur Ribs', store: 'Uber Eats', price: 95, eta: '35m' },
-                            { name: 'Tashas Salad Bowl', store: 'Mr D', price: 110, eta: '30m' },
-                            { name: 'Panarottis Pasta', store: 'Uber Eats', price: 85, eta: '30m' },
-                        ]
-                    }
+                    try {
+                        // Call the restaurant search API
+                        const apiParams: any = { maxPrice: budget, limit: 10 }
+                        if (restaurantSlug) apiParams.restaurant = restaurantSlug
+                        if (category) apiParams.category = category
 
-                    const productImages: Record<string, string[]> = {
-                        burger: [
-                            'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&h=200&fit=crop',
-                            'https://images.unsplash.com/photo-1550317138-10000687a72b?w=200&h=200&fit=crop',
-                            'https://images.unsplash.com/photo-1586816001966-79b736744398?w=200&h=200&fit=crop'
-                        ],
-                        pizza: [
-                            'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=200&h=200&fit=crop',
-                            'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=200&h=200&fit=crop',
-                            'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=200&h=200&fit=crop'
-                        ],
-                        chicken: [
-                            'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=200&h=200&fit=crop',
-                            'https://images.unsplash.com/photo-1598103442097-8b74394b95c6?w=200&h=200&fit=crop',
-                            'https://images.unsplash.com/photo-1527477396000-e27163b481c2?w=200&h=200&fit=crop'
-                        ],
-                        food: [
-                            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200&h=200&fit=crop',
-                            'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=200&h=200&fit=crop',
-                            'https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=200&h=200&fit=crop'
-                        ]
-                    }
-
-                    const images = productImages[foodType] || productImages.food
-                    const allProducts = productCatalog[foodType] || productCatalog.food
-
-                    // CRITICAL: Filter to ONLY products under budget
-                    const filteredProducts = allProducts
-                        .filter(p => p.price < budget)
-                        .map((p, i) => ({
-                            ...p,
-                            id: `p${i + 1}`,
-                            image: images[i % images.length]
-                        }))
-
-                    if (filteredProducts.length === 0) {
-                        // No products under budget - suggest alternatives
-                        const cheapest = allProducts.reduce((min, p) => p.price < min.price ? p : min, allProducts[0])
-                        nextSession.messages.push({
-                            id: crypto.randomUUID(),
-                            role: 'assistant',
-                            content: `Hmm, I couldn't find ${foodType} options under R${budget}. 😅\n\nThe cheapest I found is **${cheapest.name}** at R${cheapest.price} from ${cheapest.store}.\n\nWant me to show options up to R${cheapest.price + 20}?`,
-                            timestamp: Date.now() + 300
+                        const response = await fetch('/api/restaurants/search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(apiParams)
                         })
-                    } else {
+
+                        const data = await response.json()
+
+                        if (data.products && data.products.length > 0) {
+                            // Format products for display
+                            const products = data.products.map((p: any, i: number) => ({
+                                id: p.id || `p${i + 1}`,
+                                name: p.name,
+                                store: p.store,
+                                price: p.price,
+                                eta: p.eta || '25m',
+                                image: p.image || `https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&h=200&fit=crop`
+                            }))
+
+                            const searchDesc = restaurantName
+                                ? `${restaurantName}${category ? ` ${category}` : ''} items`
+                                : `${category || 'food'} options`
+
+                            nextSession.messages.push({
+                                id: crypto.randomUUID(),
+                                role: 'assistant',
+                                content: `Found ${products.length} ${searchDesc} under R${budget}! Swipe to see all →`,
+                                type: 'product_list',
+                                data: {
+                                    query: restaurantName || category || 'food',
+                                    budget: budget,
+                                    restaurant: restaurantName,
+                                    products: products
+                                },
+                                timestamp: Date.now() + 500
+                            })
+                        } else {
+                            // No results found
+                            const searchFor = restaurantName || category || 'food'
+                            nextSession.messages.push({
+                                id: crypto.randomUUID(),
+                                role: 'assistant',
+                                content: `Hmm, I couldn't find ${searchFor} options under R${budget}. 😅\n\nTry a higher budget or different search. For example:\n• "KFC under R100"\n• "McDonald's burger"\n• "Nando's chicken"`,
+                                timestamp: Date.now() + 300
+                            })
+                        }
+                    } catch (error) {
+                        console.error('Restaurant search error:', error)
+                        // Fallback message
                         nextSession.messages.push({
                             id: crypto.randomUUID(),
                             role: 'assistant',
-                            content: `Found ${foodType} options under R${budget}! Swipe to see all →`,
-                            type: 'product_list',
-                            data: {
-                                query: foodType,
-                                budget: budget,
-                                products: filteredProducts
-                            },
-                            timestamp: Date.now() + 500
+                            content: "I'm having trouble finding menu items right now. Try:\n• \"KFC chicken\"\n• \"McDonald's burger under R60\"\n• \"pizza under R100\"",
+                            timestamp: Date.now() + 300
                         })
                     }
                 }
