@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { createClient } from '@supabase/supabase-js'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 interface MenuSearchRequest {
     query?: string           // General search term
@@ -67,6 +72,46 @@ export async function POST(request: NextRequest) {
         const body: MenuSearchRequest = await request.json()
         const { query, restaurant, category, maxPrice = 500, limit = 8 } = body
 
+        // 1. Try fetching from Supabase Database first
+        if (restaurant) {
+            let dbQuery = supabase
+                .from('menu_items')
+                .select(`
+                    id, name, description, price, category, image_url,
+                    restaurant:restaurants!inner(name, slug)
+                `)
+                .eq('restaurant.slug', restaurant)
+                .lte('price', maxPrice)
+
+            if (category) {
+                dbQuery = dbQuery.eq('category', category)
+            }
+
+            const { data: dbItems, error } = await dbQuery
+
+            if (!error && dbItems && dbItems.length > 0) {
+                const products = dbItems.map((item: any) => ({
+                    id: item.id,
+                    name: item.name,
+                    store: item.restaurant.name,
+                    price: item.price,
+                    description: item.description,
+                    category: item.category,
+                    eta: '20-30 min', // Default for now
+                    platforms: ['Uber Eats', 'Mr D'],
+                    image: item.image_url
+                }))
+
+                return NextResponse.json({
+                    products,
+                    total: products.length,
+                    source: 'database',
+                    query: { restaurant, category, maxPrice }
+                })
+            }
+        }
+
+        // 2. Fallback to AI Generation if no DB data found or no specific restaurant
         if (!process.env.GEMINI_API_KEY) {
             // Return fallback mock data if no API key
             return NextResponse.json({
