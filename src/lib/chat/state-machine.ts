@@ -430,10 +430,50 @@ export class ChatStateMachine {
                     else if (inputLower.includes('pizza')) foodType = 'pizza'
                     else if (inputLower.includes('chicken')) foodType = 'chicken'
 
-                    const budgetMatch = input.match(/R?(\d+)/i)
-                    const budget = budgetMatch ? parseInt(budgetMatch[1]) : 100
+                    // Parse budget - look for R followed by number, or "under/below X"
+                    const rMatch = input.match(/R\s?(\d+)/i)
+                    const underMatch = input.match(/(?:under|below|less than|max|maximum)\s*R?\s*(\d+)/i)
+                    const budget = underMatch ? parseInt(underMatch[1])
+                        : rMatch ? parseInt(rMatch[1])
+                            : 150 // Default budget if none specified
 
-                    // Product images from Unsplash (free to use)
+                    // Realistic SA product catalog with actual store prices
+                    const productCatalog: Record<string, Array<{ name: string, store: string, price: number, eta: string }>> = {
+                        burger: [
+                            { name: 'Steers Wacky Wednesday', store: 'Mr D', price: 35, eta: '25m' },
+                            { name: 'McDonald\'s McFeast', store: 'Uber Eats', price: 55, eta: '20m' },
+                            { name: 'Wimpy Burger', store: 'Mr D', price: 65, eta: '30m' },
+                            { name: 'Steers Classic Burger', store: 'Uber Eats', price: 75, eta: '25m' },
+                            { name: 'RocoMamas Smash Burger', store: 'Mr D', price: 89, eta: '35m' },
+                            { name: 'Spur Burger', store: 'Uber Eats', price: 95, eta: '30m' },
+                            { name: 'Hussar Grill Burger', store: 'Mr D', price: 125, eta: '40m' },
+                            { name: 'The Grillfather Burger', store: 'Uber Eats', price: 145, eta: '35m' },
+                        ],
+                        pizza: [
+                            { name: 'Debonairs Small Pizza', store: 'Mr D', price: 45, eta: '30m' },
+                            { name: 'Roman\'s Pizza Medium', store: 'Uber Eats', price: 59, eta: '25m' },
+                            { name: 'Debonairs Medium Triple-Decker', store: 'Mr D', price: 79, eta: '30m' },
+                            { name: 'Col\'Cacchio Margherita', store: 'Uber Eats', price: 95, eta: '35m' },
+                            { name: 'Andiccio24 Large', store: 'Mr D', price: 115, eta: '30m' },
+                            { name: 'Col\'Cacchio Gourmet', store: 'Uber Eats', price: 135, eta: '35m' },
+                        ],
+                        chicken: [
+                            { name: 'KFC Streetwise 2', store: 'Uber Eats', price: 42, eta: '20m' },
+                            { name: 'Nando\'s Quarter Chicken', store: 'Mr D', price: 55, eta: '25m' },
+                            { name: 'KFC Bucket for 1', store: 'Uber Eats', price: 69, eta: '20m' },
+                            { name: 'Nando\'s Half Chicken', store: 'Mr D', price: 85, eta: '25m' },
+                            { name: 'Chicken Licken Soul Food Box', store: 'Uber Eats', price: 95, eta: '25m' },
+                            { name: 'Nando\'s Full Chicken', store: 'Mr D', price: 145, eta: '30m' },
+                        ],
+                        food: [
+                            { name: 'Woolworths Ready Meal', store: 'Checkers Sixty60', price: 45, eta: '45m' },
+                            { name: 'Ocean Basket Fish & Chips', store: 'Mr D', price: 75, eta: '30m' },
+                            { name: 'Spur Ribs', store: 'Uber Eats', price: 95, eta: '35m' },
+                            { name: 'Tashas Salad Bowl', store: 'Mr D', price: 110, eta: '30m' },
+                            { name: 'Panarottis Pasta', store: 'Uber Eats', price: 85, eta: '30m' },
+                        ]
+                    }
+
                     const productImages: Record<string, string[]> = {
                         burger: [
                             'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=200&h=200&fit=crop',
@@ -458,28 +498,40 @@ export class ChatStateMachine {
                     }
 
                     const images = productImages[foodType] || productImages.food
+                    const allProducts = productCatalog[foodType] || productCatalog.food
 
-                    // More product options for carousel scrolling
-                    const foodName = foodType.charAt(0).toUpperCase() + foodType.slice(1)
+                    // CRITICAL: Filter to ONLY products under budget
+                    const filteredProducts = allProducts
+                        .filter(p => p.price < budget)
+                        .map((p, i) => ({
+                            ...p,
+                            id: `p${i + 1}`,
+                            image: images[i % images.length]
+                        }))
 
-                    nextSession.messages.push({
-                        id: crypto.randomUUID(),
-                        role: 'assistant',
-                        content: `Found ${foodType} options under R${budget}! Swipe to see all →`,
-                        type: 'product_list',
-                        data: {
-                            query: foodType,
-                            products: [
-                                { name: `Classic ${foodName}`, store: 'Uber Eats', price: Math.min(85, budget - 10), eta: '25m', id: 'p1', image: images[0] },
-                                { name: `Premium ${foodName}`, store: 'Mr D', price: Math.min(95, budget), eta: '30m', id: 'p2', image: images[1] },
-                                { name: `Budget ${foodName}`, store: 'Checkers', price: Math.min(45, budget - 20), eta: '45m', id: 'p3', image: images[2] },
-                                { name: `Gourmet ${foodName}`, store: 'Pick n Pay', price: Math.min(110, budget + 10), eta: '35m', id: 'p4', image: images[0] },
-                                { name: `Family ${foodName}`, store: 'Uber Eats', price: Math.min(140, budget + 30), eta: '40m', id: 'p5', image: images[1] },
-                                { name: `Combo ${foodName}`, store: 'Mr D', price: Math.min(120, budget + 20), eta: '30m', id: 'p6', image: images[2] },
-                            ]
-                        },
-                        timestamp: Date.now() + 500
-                    })
+                    if (filteredProducts.length === 0) {
+                        // No products under budget - suggest alternatives
+                        const cheapest = allProducts.reduce((min, p) => p.price < min.price ? p : min, allProducts[0])
+                        nextSession.messages.push({
+                            id: crypto.randomUUID(),
+                            role: 'assistant',
+                            content: `Hmm, I couldn't find ${foodType} options under R${budget}. 😅\n\nThe cheapest I found is **${cheapest.name}** at R${cheapest.price} from ${cheapest.store}.\n\nWant me to show options up to R${cheapest.price + 20}?`,
+                            timestamp: Date.now() + 300
+                        })
+                    } else {
+                        nextSession.messages.push({
+                            id: crypto.randomUUID(),
+                            role: 'assistant',
+                            content: `Found ${foodType} options under R${budget}! Swipe to see all →`,
+                            type: 'product_list',
+                            data: {
+                                query: foodType,
+                                budget: budget,
+                                products: filteredProducts
+                            },
+                            timestamp: Date.now() + 500
+                        })
+                    }
                 }
                 // Default - Call Gemini API for intelligent response
                 else {
